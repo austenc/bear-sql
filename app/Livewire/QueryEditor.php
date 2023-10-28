@@ -11,36 +11,73 @@ class QueryEditor extends Component
 {
     public Connection $connection;
 
-    public $results;
-
     public $validQuery = false;
+
+    public $orderBy = null;
+
+    public $direction = 'asc';
 
     public string $query;
 
     public function mount(Connection $connection)
     {
         $this->connection = $connection;
-        $this->results = collect();
 
         // Debug
         $this->query = 'select * from users';
-        $this->updatedQuery();
     }
 
-    public function updatedQuery()
+    public function setOrderBy($col)
+    {
+        // if this is already the order by, toggle the direction
+        if ($this->orderBy == $col) {
+
+            // Cycle the direction, asc, desc, null
+            if ($this->direction === 'desc') {
+                $this->orderBy = null;
+                $this->direction = null;
+
+                return;
+            }
+
+            $this->direction = $this->direction === 'asc' ? 'desc' : 'asc';
+
+            return;
+        }
+
+        $this->orderBy = $col;
+        $this->direction = 'asc';
+    }
+
+    #[Computed]
+    public function finalQuery()
+    {
+        return $this->currentConnection
+            ->query()
+            ->when($this->orderBy, function ($query) {
+                return $query->orderBy($this->orderBy, $this->direction);
+            })
+            ->selectRaw(str($this->query)->trim()->replaceStart('select ', ''))
+            ->get();
+    }
+
+    public function runQuery()
     {
         if (empty($this->query)) {
             return collect();
         }
 
         try {
-            $this->results = collect()->wrap($this->currentConnection->select($this->query));
+            $results = collect()->wrap($this->finalQuery);
             $this->validQuery = true;
             $this->resetValidation('query');
+
+            return $results;
         } catch (\Exception $e) {
             $this->validQuery = false;
-            $this->results = collect();
             $this->addError('query', $e->getMessage());
+
+            return collect();
         }
     }
 
@@ -86,6 +123,8 @@ class QueryEditor extends Component
 
     public function render()
     {
-        return view('livewire.query-editor');
+        return view('livewire.query-editor', [
+            'results' => $this->runQuery(),
+        ]);
     }
 }
