@@ -16,3 +16,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get(
+    '/connections/{connection}/query-editor',
+    App\Livewire\QueryEditor::class
+)->name('connections.show');
